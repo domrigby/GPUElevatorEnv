@@ -28,7 +28,8 @@ def init(batch_size, device):
         n_floors=n_floors,
         capacity=capacity,
         lambdas=torch.full((batch_size, n_floors), lambdas_val, device=device),
-        device=device
+        device=device,
+        max_lambda=1.
     )
     policy = PolicyNet(n_elevators, n_floors).to(device)
     policy.eval()
