@@ -193,7 +193,7 @@ if __name__=="__main__":
         writer.add_scalar('LR', optimizer.param_groups[0]['lr'], epoch)
 
         if epoch % 100 == 0:
-            model_path = "elevator_ppo_model.pth"
+            model_path = "outputs/elevator_ppo_model.pth"
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': policy.state_dict(),

@@ -19,7 +19,7 @@ lambdas = torch.full((num_envs, n_floors), 0.5, device=torch_device)
 env = GPUVectorElevatorEnv(num_envs, n_elevators, n_floors, capacity, lambdas, max_lambda=1., device=torch_device)
 # Use a random policy or load a trained model
 policy = PolicyNet(n_elevators, n_floors).to(torch_device)
-policy.load_state_dict(torch.load("elevator_ppo_model.pth")['model_state_dict'])
+policy.load_state_dict(torch.load("outputs/elevator_ppo_model.pth")['model_state_dict'])
 policy.eval()
 
 # Collect states over time

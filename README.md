@@ -17,4 +17,4 @@ To watch the policy:
 Running the environment on my puny GTX 1050 on my laptop. The GPU is unfortunately too old for compiling the torch code
 but we still see decent speed ups.
 
-![Running on the CPU cs GPU](experiences_per_second_cpu_vs_gpu.png)
+![Running on the CPU cs GPU](outputs/experiences_per_second_cpu_vs_gpu.png)
