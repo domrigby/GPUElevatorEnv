@@ -10,33 +10,31 @@ from elevator_env import GPUVectorElevatorEnv
 class PolicyNet(nn.Module):
     def __init__(self, n_elevators, n_floors, hidden_size=128):
         super().__init__()
-        obs_size = n_elevators * 2 + n_floors * 2
+        # Observations: pos_norm, load_norm, waiting_norm, lambdas_norm, cumulative_wait_norm
+        obs_size = n_elevators * 2 + n_floors * 2 + 1
         self.fc = nn.Sequential(
             nn.Linear(obs_size, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
         )
-        self.actor = nn.Sequential(
-                        nn.Linear(hidden_size, hidden_size), nn.ReLU(),
-                        nn.Linear(hidden_size, hidden_size), nn.ReLU(),
-                        nn.Linear(hidden_size, n_elevators * 3))
-
-        self.critic = nn.Sequential(
-                        nn.Linear(hidden_size, hidden_size), nn.ReLU(),
-                        nn.Linear(hidden_size, hidden_size), nn.ReLU(),
-                        nn.Linear(hidden_size, 1))
+        self.actor = nn.Linear(hidden_size, n_elevators * 3)
+        self.critic = nn.Linear(hidden_size, 1)
 
     def forward(self, obs):
+        # Concatenate normalized observations
+        batch = obs['elevator_pos_norm'].shape[0]
+        cum_norm = obs['cumulative_wait_norm'].view(batch, 1)
         x = torch.cat([
-            obs['elevator_pos'].float(),
-            obs['elevator_load'].float(),
-            obs['waiting'].float(),
-            obs['lambdas'].float(),
+            obs['elevator_pos_norm'],          # (batch, n_elevators)
+            obs['elevator_load_norm'],         # (batch, n_elevators)
+            obs['waiting_norm'],               # (batch, n_floors)
+            obs['lambdas_norm'],               # (batch, n_floors)
+            cum_norm,                          # (batch, 1)
         ], dim=1)
         h = self.fc(x)
-        logits = self.actor(h).view(h.size(0), -1, 3)
-        value = self.critic(h).squeeze(-1)
+        logits = self.actor(h).view(h.size(0), -1, 3)  # (batch, n_elevators, 3)
+        value = self.critic(h).squeeze(-1)              # (batch,)
         return logits, value
 
 class RolloutBuffer:
@@ -59,7 +57,7 @@ if __name__=="__main__":
     gamma = 0.99
     gae_lambda = 0.95
     ppo_eps = 0.2
-    lr = 1e-5  # lowered learning rate to stabilize updates
+    lr = 1e-4  # lowered learning rate to stabilize updates
     max_grad_norm = 0.05  # tighter clipping threshold
 
     # TensorBoard writer
@@ -74,7 +72,7 @@ if __name__=="__main__":
     capacity = 20
     lambdas = torch.full((num_envs, n_floors), 0.5, device=device)
 
-    env = GPUVectorElevatorEnv(num_envs, n_elevators, n_floors, capacity, lambdas, device=device)
+    env = GPUVectorElevatorEnv(num_envs, n_elevators, n_floors, capacity, lambdas, max_lambda=1., device=device)
     policy = PolicyNet(n_elevators, n_floors).to(device)
     optimizer = optim.Adam(policy.parameters(), lr=lr)
     # LR scheduler to reduce LR on plateau of policy loss
@@ -114,7 +112,7 @@ if __name__=="__main__":
             writer.add_scalar('Reward/step', reward.mean().item(), global_step)
 
         # Log average waiting at end of rollout
-        mean_wait = obs['waiting'].float().mean().item()
+        mean_wait = obs['waiting_norm'].float().mean().item()
         writer.add_scalar('Waiting/mean', mean_wait, epoch)
 
         # Compute returns and advantages
@@ -193,6 +191,16 @@ if __name__=="__main__":
         writer.add_scalar('Policy/KL', epoch_kl / 4, epoch)
         writer.add_scalar('Grad/Norm', epoch_grad_norm / 4, epoch)
         writer.add_scalar('LR', optimizer.param_groups[0]['lr'], epoch)
+
+        if epoch % 100 == 0:
+            model_path = "elevator_ppo_model.pth"
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': policy.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': None, #scheduler.state_dict(),
+            }, model_path)
+            print(f"Saved model checkpoint to {model_path}")
 
         if epoch % 10 == 0:
             print(f"Epoch {epoch}: Avg Reward {epoch_reward/batch_size:.2f}, "
