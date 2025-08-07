@@ -65,8 +65,8 @@ if __name__=="__main__":
     gamma = 0.99
     gae_lambda = 0.95
     ppo_eps = 0.2
-    lr = 5e-5  # lowered learning rate to stabilize updates
-    max_grad_norm = 0.05  # tighter clipping threshold
+    lr = 1e-4  # lowered learning rate to stabilize updates
+    max_grad_norm = 0.5  # tighter clipping threshold
 
     # TensorBoard writer
     writer = SummaryWriter(log_dir="runs/elevator_ppo")
@@ -75,7 +75,7 @@ if __name__=="__main__":
 
     # Env setup
     num_envs = batch_size
-    n_elevators = 4
+    n_elevators = 10
     n_floors = 10
     capacity = 20
     lambdas = torch.full((num_envs, n_floors), 0.5, device=device)
