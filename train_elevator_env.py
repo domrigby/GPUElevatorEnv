@@ -61,7 +61,7 @@ if __name__=="__main__":
     # Hyperparameters
     epochs = 100000
     batch_size = 2048
-    n_steps = 64
+    n_steps = 128
     gamma = 0.99
     gae_lambda = 0.95
     ppo_eps = 0.2
@@ -78,13 +78,13 @@ if __name__=="__main__":
     n_elevators = 10
     n_floors = 10
     capacity = 20
-    lambdas = torch.full((num_envs, n_floors), 0.5, device=device)
+    lambdas = torch.full((num_envs, n_floors), 0.2, device=device)
 
     env = GPUVectorElevatorEnv(num_envs, n_elevators, n_floors, capacity, lambdas, max_lambda=1., device=device)
     policy = PolicyNet(n_elevators, n_floors).to(device)
     optimizer = optim.Adam(policy.parameters(), lr=lr)
     # LR scheduler to reduce LR on plateau of policy loss
-    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=20, verbose=True)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.9, patience=20, verbose=True)
     buffer = RolloutBuffer()
     obs = env.reset()
 
@@ -176,7 +176,7 @@ if __name__=="__main__":
             value_loss = (returns_flat - values_pred).pow(2).mean()
             entropy_loss = dist_new.entropy().mean()
 
-            loss = policy_loss + 0.5 * value_loss - 0.01 * entropy_loss
+            loss = policy_loss + 0.5 * value_loss - 1e-6 * entropy_loss
 
             optimizer.zero_grad()
             loss.backward()
@@ -191,7 +191,7 @@ if __name__=="__main__":
             epoch_grad_norm += grad_norm
 
         # Adjust learning rate based on policy loss plateau
-        # scheduler.step(epoch_policy_loss / 4)
+        scheduler.step(epoch_policy_loss / 4)
 
         # Log scalars to TensorBoard
         writer.add_scalar('Reward/epoch', epoch_reward / batch_size, epoch)

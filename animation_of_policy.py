@@ -7,14 +7,15 @@ from matplotlib.animation import FuncAnimation
 torch_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 from elevator_env import GPUVectorElevatorEnv
 from train_elevator_env import PolicyNet
+from torch.distributions import Categorical
 
 # Env setup
 num_envs = 1
-n_elevators = 4
+n_elevators = 10
 n_floors = 10
 capacity = 20
 steps = 100
-lambdas = torch.full((num_envs, n_floors), 0.5, device=torch_device)
+lambdas = torch.full((num_envs, n_floors), 0.2, device=torch_device)
 
 env = GPUVectorElevatorEnv(num_envs, n_elevators, n_floors, capacity, lambdas, max_lambda=1., device=torch_device)
 # Use a random policy or load a trained model
@@ -26,19 +27,22 @@ policy.eval()
 positions = []  # list of shape (step, n_elevators)
 waiting = []    # list of shape (step, n_floors)
 obs = env.reset()
+total_reward = 0
 with torch.no_grad():
     for t in range(steps):
         # Random actions: 0=stop,1=up,2=down (for demo)
         # actions = torch.randint(0, 3, (1, n_elevators), device=torch_device)
         # Or use policy:
-        logits, _ = policy(obs)
-        actions = torch.argmax(logits, dim=-1)
+        logits, value = policy(obs)
+        dist = Categorical(logits=logits)
+        actions = dist.sample()
 
         obs, reward, done, info = env.step(actions)
         # move to CPU for plotting
         positions.append((n_floors - 1)* obs['elevator_pos_norm'].cpu().numpy().flatten())
         waiting.append(20 * obs['waiting_norm'].cpu().numpy().flatten())
-        print(list(actions.cpu()), 9 * obs['elevator_pos_norm'].cpu().numpy().flatten(), obs['waiting_norm'].cpu().numpy().flatten()[-1])
+        total_reward += reward
+        print(total_reward, list(actions.cpu()), 9 * obs['elevator_pos_norm'].cpu().numpy().flatten(), obs['waiting_norm'].cpu().numpy().flatten())
 
 # Prepare figure
 fig, (ax_elev, ax_wait) = plt.subplots(1, 2, figsize=(8, 4))
@@ -47,7 +51,9 @@ fig, (ax_elev, ax_wait) = plt.subplots(1, 2, figsize=(8, 4))
 def get_initial_scatter_data():
     xs = list(range(n_elevators))
     ys = positions[0].tolist()
-    colors = ['red', 'blue', 'black', 'pink'][:n_elevators]
+    colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray',
+                 'black', 'white', 'yellow', 'cyan', 'magenta', 'lime', 'olive',
+                 'teal', 'navy', 'maroon', 'gold', 'turquoise'][:n_elevators]
     return xs, ys, colors
 
 init_xs, init_ys, init_colors = get_initial_scatter_data()

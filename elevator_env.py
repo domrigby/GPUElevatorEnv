@@ -94,6 +94,7 @@ class GPUVectorElevatorEnv:
         returns: obs, reward, done, info
         """
         actions = actions.to(self.device).long()
+        reward = torch.zeros(self.num_envs, device=self.device)
         assert actions.shape == (self.num_envs, self.n_elevators)
         if torch.any((actions < 0) | (actions > 2)):
             raise ValueError("actions must be in {0,1,2}")
@@ -124,6 +125,7 @@ class GPUVectorElevatorEnv:
             if unload_counts.any():
                 unloaded_per_env = unload_counts.sum(dim=1)
                 unloaded_this_step += unloaded_per_env
+                reward = reward + unloaded_per_env / 100
                 self.delivered += unloaded_per_env
                 load = load - unload_counts  # zero where unload_mask else unchanged
 
@@ -187,7 +189,7 @@ class GPUVectorElevatorEnv:
         # === Cumulative wait and reward ===
         step_wait = self.waiting.sum(dim=1).float()
         self.cumulative_wait += step_wait
-        reward = -step_wait / 10_000.0  # instantaneous negative wait per step
+        reward = reward - step_wait / 10_000.0  # instantaneous negative wait per step
 
         # === Time / done ===
         self.t += 1
