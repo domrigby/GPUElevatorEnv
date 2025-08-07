@@ -29,15 +29,16 @@ obs = env.reset()
 with torch.no_grad():
     for t in range(steps):
         # Random actions: 0=stop,1=up,2=down (for demo)
-        actions = torch.randint(0, 3, (1, n_elevators), device=torch_device)
+        # actions = torch.randint(0, 3, (1, n_elevators), device=torch_device)
         # Or use policy:
-        # logits, _ = policy(obs)
-        # actions = torch.argmax(logits, dim=-1)
+        logits, _ = policy(obs)
+        actions = torch.argmax(logits, dim=-1)
 
         obs, reward, done, info = env.step(actions)
         # move to CPU for plotting
-        positions.append(n_floors * obs['elevator_pos_norm'].cpu().numpy().flatten())
-        waiting.append(10 * obs['waiting_norm'].cpu().numpy().flatten())
+        positions.append((n_floors - 1)* obs['elevator_pos_norm'].cpu().numpy().flatten())
+        waiting.append(20 * obs['waiting_norm'].cpu().numpy().flatten())
+        print(list(actions.cpu()), 9 * obs['elevator_pos_norm'].cpu().numpy().flatten(), obs['waiting_norm'].cpu().numpy().flatten()[-1])
 
 # Prepare figure
 fig, (ax_elev, ax_wait) = plt.subplots(1, 2, figsize=(8, 4))
@@ -59,7 +60,7 @@ ax_elev.set_title('Elevator Positions')
 
 # Waiting bar chart
 bars = ax_wait.bar(range(n_floors), [0]*n_floors)
-ax_wait.set_ylim(0, max(lambdas.max().item()*steps, 10))
+ax_wait.set_ylim(0, 10)
 ax_wait.set_xlabel('Floor')
 ax_wait.set_ylabel('Waiting Count')
 ax_wait.set_title('Passengers Waiting')

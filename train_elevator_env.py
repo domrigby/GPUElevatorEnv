@@ -8,18 +8,26 @@ from torch.utils.tensorboard import SummaryWriter
 from elevator_env import GPUVectorElevatorEnv
 
 class PolicyNet(nn.Module):
-    def __init__(self, n_elevators, n_floors, hidden_size=128):
+    def __init__(self, n_elevators, n_floors, hidden_size=256):
         super().__init__()
         # Observations: pos_norm, load_norm, waiting_norm, lambdas_norm, cumulative_wait_norm
         obs_size = n_elevators * 2 + n_floors * 2 + 1
         self.fc = nn.Sequential(
             nn.Linear(obs_size, hidden_size),
-            nn.ReLU(),
+            nn.BatchNorm1d(hidden_size),
+            nn.LeakyReLU(),
             nn.Linear(hidden_size, hidden_size),
-            nn.ReLU(),
+            nn.BatchNorm1d(hidden_size),
+            nn.LeakyReLU(),
         )
-        self.actor = nn.Linear(hidden_size, n_elevators * 3)
-        self.critic = nn.Linear(hidden_size, 1)
+        self.actor = nn.Sequential(nn.Linear(hidden_size, hidden_size),
+                                    nn.BatchNorm1d(hidden_size),
+                                    nn.LeakyReLU(),
+                                    nn.Linear(hidden_size, n_elevators * 3))
+
+        self.critic = nn.Sequential(nn.Linear(hidden_size, hidden_size),
+                                    nn.BatchNorm1d(hidden_size),
+                                    nn.LeakyReLU(), nn.Linear(hidden_size, 1))
 
     def forward(self, obs):
         # Concatenate normalized observations
@@ -51,13 +59,13 @@ class RolloutBuffer:
 
 if __name__=="__main__":
     # Hyperparameters
-    epochs = 1000
+    epochs = 100000
     batch_size = 2048
     n_steps = 64
     gamma = 0.99
     gae_lambda = 0.95
     ppo_eps = 0.2
-    lr = 1e-4  # lowered learning rate to stabilize updates
+    lr = 5e-5  # lowered learning rate to stabilize updates
     max_grad_norm = 0.05  # tighter clipping threshold
 
     # TensorBoard writer
@@ -89,6 +97,8 @@ if __name__=="__main__":
         epoch_entropy = 0.0
         epoch_kl = 0.0
         epoch_grad_norm = 0.0
+
+        obs = env.reset()
 
         # Collect rollout
         for step in range(n_steps):
